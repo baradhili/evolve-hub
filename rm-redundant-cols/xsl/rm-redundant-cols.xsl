@@ -5,7 +5,6 @@
   xmlns:css="http://www.w3.org/1996/css"
   xmlns:hub="http://transpect.io/hub"
   xmlns="http://docbook.org/ns/docbook"
-  xpath-default-namespace="http://docbook.org/ns/docbook"
   exclude-result-prefixes="xs hub dbk"
   version="2.0">
   
@@ -45,15 +44,17 @@
     </xsl:copy>
   </xsl:template>
   
-  <xsl:template match="*:tgroup[*:colspec[if (matches(@colwidth,'mm$')) 
-                                          then number(replace(@colwidth,'mm$','')) lt 1 
+  <xsl:variable name="cw-units" select="'(mm|p[ti])'"/>
+  
+  <xsl:template match="*:tgroup[*:colspec[if (matches(@colwidth,concat($cw-units,'$'))) 
+                                          then number(replace(@colwidth,concat($cw-units,'$'),'')) lt 1 
                                           else false()]
                                          [every $e in (parent::*:tgroup//*:entry/@colname) 
                                           satisfies not(@colname=$e)]
                                          [some $c in parent::*:tgroup//*/@nameend satisfies @colname=$c]]" 
                 mode="hub:rm-redundant-small-cols-nameend">
-    <xsl:variable name="redundant-cols" select="*:colspec[if (matches(@colwidth,'mm$')) 
-                                                          then number(replace(@colwidth,'mm$','')) lt 1 
+    <xsl:variable name="redundant-cols" select="*:colspec[if (matches(@colwidth,concat($cw-units,'$'))) 
+                                                          then number(replace(@colwidth,concat($cw-units,'$'),'')) lt 1 
                                                           else false()]
                                                          [every $e in (parent::*:tgroup//*:entry/@colname) 
                                                           satisfies not(@colname=$e)]
@@ -84,15 +85,15 @@
     </xsl:copy>
   </xsl:template>
   
-  <xsl:template match="*:tgroup[*:colspec[if (matches(@colwidth,'mm$')) 
-                                          then number(replace(@colwidth,'mm$','')) lt 1 
+  <xsl:template match="*:tgroup[*:colspec[if (matches(@colwidth,concat($cw-units,'$'))) 
+                                          then number(replace(@colwidth,concat($cw-units,'$'),'')) lt 1 
                                           else false()]
                                          [every $e in (parent::*:tgroup//*:entry/@colname) 
                                           satisfies not(@colname=$e)]
                                          [some $c in parent::*:tgroup//*/@namest satisfies @colname=$c]]" 
                 mode="hub:rm-redundant-small-cols-namest">
-    <xsl:variable name="redundant-cols" select="*:colspec[if (matches(@colwidth,'mm$')) 
-                                                          then number(replace(@colwidth,'mm$','')) lt 1 
+    <xsl:variable name="redundant-cols" select="*:colspec[if (matches(@colwidth,concat($cw-units,'$'))) 
+                                                          then number(replace(@colwidth,concat($cw-units,'$'),'')) lt 1 
                                                           else false()]
                                                          [every $e in (parent::*:tgroup//*:entry/@colname) 
                                                           satisfies not(@colname=$e)]
@@ -123,13 +124,13 @@
     </xsl:copy>
   </xsl:template>
   
-  <xsl:template match="*:tgroup[*:colspec[if (matches(@colwidth,'mm$')) 
-                                          then number(replace(@colwidth,'mm$','')) lt 1 
+  <xsl:template match="*:tgroup[*:colspec[if (matches(@colwidth,concat($cw-units,'$'))) 
+                                          then number(replace(@colwidth,concat($cw-units,'$'),'')) lt 1 
                                           else false()]
                                          [every $e in (parent::*:tgroup//*:entry/@colname) 
                                           satisfies not(@colname=$e)]]" mode="hub:rm-redundant-small-cols-colname">
-    <xsl:variable name="redundant-cols" select="*:colspec[if (matches(@colwidth,'mm$')) 
-                                                          then number(replace(@colwidth,'mm$','')) lt 1 
+    <xsl:variable name="redundant-cols" select="*:colspec[if (matches(@colwidth,concat($cw-units,'$'))) 
+                                                          then number(replace(@colwidth,concat($cw-units,'$'),'')) lt 1 
                                                           else false()]
                                                          [every $e in (parent::*:tgroup//*:entry/@colname) 
                                                           satisfies not(@colname=$e)]/@colname" as="xs:string*"/>
@@ -276,19 +277,23 @@
     <xsl:param name="redundant-cols" tunnel="yes" as="xs:string*" select="()"/>
     <xsl:variable name="namest-corresponding-colspec" select="ancestor::*:tgroup[1]/*:colspec[@colname = current()/@namest]" as="element(colspec)?"/>
     <xsl:variable name="nameend-corresponding-colspec" select="ancestor::*:tgroup[1]/*:colspec[@colname = current()/@nameend]" as="element(colspec)?"/>
-    <xsl:if test="not(empty($redundant-cols)) and
-                  not((number($nameend-corresponding-colspec/@colnum)-
-                       count($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols]))-
-                      (number($namest-corresponding-colspec/@colnum)-
-                       count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols]))=0)">
+    <xsl:variable name="collapsed" as="xs:boolean"
+                  select="not(empty($redundant-cols)) and
+                          (number($nameend-corresponding-colspec/@colnum)-
+                           count($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols]))-
+                          (number($namest-corresponding-colspec/@colnum)-
+                           count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols]))=0"/>
+    <xsl:if test="not($collapsed)">
       <xsl:copy>
-        <xsl:apply-templates select="@*" mode="#current"/>
-        <xsl:variable name="namest-colnum" select="number($namest-corresponding-colspec/@colnum)-
-                                                   count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])"/>
-        <xsl:variable name="nameend-colnum" select="number($nameend-corresponding-colspec/@colnum)-
-                                                    count($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])"/>
-        <xsl:attribute name="namest" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$namest-colnum]/@colname"/>
-        <xsl:attribute name="nameend" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$nameend-colnum]/@colname"/>
+        <xsl:apply-templates select="@* except (@namest,@nameend)[not(empty($redundant-cols))]" mode="#current"/>
+        <xsl:if test="not(empty($redundant-cols))">
+          <xsl:variable name="namest-colnum" select="number($namest-corresponding-colspec/@colnum)-
+            count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])"/>
+          <xsl:variable name="nameend-colnum" select="number($nameend-corresponding-colspec/@colnum)-
+            count($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])"/>
+          <xsl:attribute name="namest" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$namest-colnum]/@colname"/>
+          <xsl:attribute name="nameend" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$nameend-colnum]/@colname"/>
+        </xsl:if>
         <xsl:apply-templates mode="#current"/>
       </xsl:copy>
     </xsl:if>
@@ -300,23 +305,27 @@
                   select="ancestor::*:tgroup[1]/*:colspec[@colname = current()/@namest]" as="element(colspec)?"/>
     <xsl:variable name="nameend-corresponding-colspec" 
                   select="ancestor::*:tgroup[1]/*:colspec[@colname = current()/@nameend]" as="element(colspec)?"/>
-    <xsl:if test="not(empty($redundant-cols)) and
-                  not((number($nameend-corresponding-colspec/@colnum)-
-                       count(($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols],
-                              $nameend-corresponding-colspec[@colname=$redundant-cols])))-
-                      (number($namest-corresponding-colspec/@colnum)-
-                       count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols]))=0)">
+    <xsl:variable name="collapsed" as="xs:boolean"
+                  select="not(empty($redundant-cols)) and
+                          (number($nameend-corresponding-colspec/@colnum)-
+                           count(($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols],
+                                  $nameend-corresponding-colspec[@colname=$redundant-cols])))-
+                          (number($namest-corresponding-colspec/@colnum)-
+                           count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols]))=0"/>
+    <xsl:if test="not($collapsed)">
       <xsl:copy>
-        <xsl:apply-templates select="@*" mode="#current"/>
-        <xsl:variable name="namest-colnum" 
-                      select="number($namest-corresponding-colspec/@colnum)-
-                              count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])"/>
-        <xsl:variable name="nameend-colnum" 
-                      select="number($nameend-corresponding-colspec/@colnum)-
-                              count(($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols],
-                                     $nameend-corresponding-colspec[@colname=$redundant-cols]))"/>
-        <xsl:attribute name="namest" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$namest-colnum]/@colname"/>
-        <xsl:attribute name="nameend" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$nameend-colnum]/@colname"/>
+        <xsl:apply-templates select="@* except (@namest,@nameend)[not(empty($redundant-cols))]" mode="#current"/>
+        <xsl:if test="not(empty($redundant-cols))">
+          <xsl:variable name="namest-colnum" 
+                        select="number($namest-corresponding-colspec/@colnum)-
+                                count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])"/>
+          <xsl:variable name="nameend-colnum" 
+                        select="number($nameend-corresponding-colspec/@colnum)-
+                                count(($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols],
+                                       $nameend-corresponding-colspec[@colname=$redundant-cols]))"/>
+          <xsl:attribute name="namest" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$namest-colnum]/@colname"/>
+          <xsl:attribute name="nameend" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$nameend-colnum]/@colname"/>
+        </xsl:if>
         <xsl:apply-templates mode="#current"/>
       </xsl:copy>
     </xsl:if>
@@ -326,21 +335,27 @@
     <xsl:param name="redundant-cols" tunnel="yes" as="xs:string*" select="()"/>
     <xsl:variable name="namest-corresponding-colspec" select="ancestor::*:tgroup[1]/*:colspec[@colname = current()/@namest]" as="element(colspec)?"/>
     <xsl:variable name="nameend-corresponding-colspec" select="ancestor::*:tgroup[1]/*:colspec[@colname = current()/@nameend]" as="element(colspec)?"/>
-    <xsl:if test="not(empty($redundant-cols)) and
-                  not((number($nameend-corresponding-colspec/@colnum)-
-                       count($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])-
-                       count($nameend-corresponding-colspec/self::*:colspec[@colname=$redundant-cols]))-
-                      (number($namest-corresponding-colspec/@colnum)-
-                       count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols]))=0)">
+    <xsl:variable name="collapsed" as="xs:boolean"
+                  select="not(empty($redundant-cols)) and
+                          (number($nameend-corresponding-colspec/@colnum)-
+                           count($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])-
+                           count($nameend-corresponding-colspec/self::*:colspec[@colname=$redundant-cols]))-
+                          (number($namest-corresponding-colspec/@colnum)-
+                           count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols]))=0"/>
+    <xsl:if test="not($collapsed)">
       <xsl:copy>
-        <xsl:apply-templates select="@*" mode="#current"/>
-        <xsl:variable name="namest-colnum" select="number($namest-corresponding-colspec/@colnum)-
-                                                   count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])"/>
-        <xsl:variable name="nameend-colnum" select="number($nameend-corresponding-colspec/@colnum)-
-                                                    count($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])-
-                                                    count($nameend-corresponding-colspec/self::*:colspec[@colname=$redundant-cols])"/>
-        <xsl:attribute name="namest" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$namest-colnum]/@colname"/>
-        <xsl:attribute name="nameend" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$nameend-colnum]/@colname"/>
+        <xsl:apply-templates select="@* except (@namest,@nameend)[not(empty($redundant-cols))]" mode="#current"/>
+        <xsl:if test="not(empty($redundant-cols))">
+          <xsl:variable name="namest-colnum" 
+                        select="number($namest-corresponding-colspec/@colnum)-
+                                count($namest-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])"/>
+          <xsl:variable name="nameend-colnum" 
+                        select="number($nameend-corresponding-colspec/@colnum)-
+                                count($nameend-corresponding-colspec/preceding-sibling::*:colspec[@colname=$redundant-cols])-
+                                count($nameend-corresponding-colspec/self::*:colspec[@colname=$redundant-cols])"/>
+          <xsl:attribute name="namest" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$namest-colnum]/@colname"/>
+          <xsl:attribute name="nameend" select="ancestor::*:tgroup[1]/*:colspec[@colnum=$nameend-colnum]/@colname"/>
+        </xsl:if>
         <xsl:apply-templates mode="#current"/>
       </xsl:copy>
     </xsl:if>
@@ -359,11 +374,12 @@
         <xsl:attribute name="colnum" select="$colnum"/>
         <xsl:attribute name="colname" select="parent::*:tgroup/*:colspec[@colnum=$colnum]/@colname"/>
         <xsl:variable name="first" select="following-sibling::*:colspec[not(@colname=$redundant-cols)][1]"/>
-        <xsl:attribute name="colwidth" select="concat(sum((number(replace(@colwidth,'^([0-9\.]+).*?$','$1')),
+        <xsl:if test="exists(@colwidth)">
+          <xsl:attribute name="colwidth" select="concat(sum((number(replace(@colwidth,'^([0-9\.]+).*?$','$1')),
                                                           (for $post in (following-sibling::*:colspec[. &lt;&lt; $first]/@colwidth,
                                                                          following-sibling::*:colspec[empty($first)]/@colwidth) 
                                                            return number(replace($post,'^([0-9\.]+).*?$','$1'))))),
-                                                      replace(@colwidth,'^[0-9\.]+(.*?)$','$1'))"/>        
+                                                      replace(@colwidth,'^[0-9\.]+(.*?)$','$1'))"/></xsl:if>        
       </xsl:if>
       <xsl:apply-templates mode="#current"/>
     </xsl:copy>
@@ -379,11 +395,12 @@
         <xsl:attribute name="colnum" select="$colnum"/>
         <xsl:attribute name="colname" select="parent::*:tgroup/*:colspec[@colnum=$colnum]/@colname"/>
         <xsl:variable name="first" select="preceding-sibling::*:colspec[not(@colname=$redundant-cols)][1]"/>
-        <xsl:attribute name="colwidth" select="concat(sum((number(replace(@colwidth,'^([0-9\.]+).*?$','$1')),
+        <xsl:if test="exists(@colwidth)">
+          <xsl:attribute name="colwidth" select="concat(sum((number(replace(@colwidth,'^([0-9\.]+).*?$','$1')),
                                                           (for $pre in (preceding-sibling::*:colspec[. &gt;&gt; $first]/@colwidth,
                                                                         preceding-sibling::*:colspec[empty($first)]/@colwidth) 
                                                            return number(replace($pre,'^([0-9\.]+).*?$','$1'))))),
-                                                      replace(@colwidth,'^[0-9\.]+(.*?)$','$1'))"/>        
+                                                      replace(@colwidth,'^[0-9\.]+(.*?)$','$1'))"/></xsl:if>        
       </xsl:if>
       <xsl:apply-templates mode="#current"/>
     </xsl:copy>
